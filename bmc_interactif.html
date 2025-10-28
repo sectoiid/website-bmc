@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BMC Interactif (FR) — standalone</title>
+<style>
+  :root{
+    --yellow:#FCE78A;
+    --bg:#e6c735;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111}
+  .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+  h1{margin:0 0 16px;font-size:32px;font-weight:800;letter-spacing:-.02em}
+  h1 span{font-weight:300}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:180px 180px 180px}
+  .cell{position:relative}
+  .card{position:relative;height:100%;width:100%;border-radius:16px;border:1px solid #e5e7eb;background:#fff;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.05)}
+  .head{position:absolute;inset:0 auto auto 0;height:40px;background:var(--yellow);display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+  .title{font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:13px}
+  .badge{height:24px;width:24px;border-radius:999px;background:#111;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:8px}
+  .btn{border:0;background:transparent;cursor:pointer}
+  .plus{width:18px;height:18px;position:relative}
+  .plus:before,.plus:after{content:"";position:absolute;background:#111;border-radius:2px}
+  .plus:before{width:2px;height:18px;left:8px;top:0}
+  .plus:after{height:2px;width:18px;left:0;top:8px}
+  .body{padding-top:48px;height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+  .footer{position:absolute;left:0;right:0;bottom:0;height:32px;background:#000000e6;border-top-left-radius:12px;border-top-right-radius:12px}
+  .hint{color:#6b7280;font-size:13px;font-style:italic}
+  .upbtn{display:inline-flex;align-items:center;gap:8px;background:#111;color:#fff;border-radius:10px;padding:8px 12px;font-size:12px}
+  .upbtn svg{width:14px;height:14px}
+  img.preview{max-height:140px;object-fit:contain}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:saturate(120%) blur(3px);display:none;align-items:center;justify-content:center;z-index:10}
+  .overlay.open{display:flex}
+  .modal{position:relative;width:min(92vw,768px);background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden}
+  .mhead{height:48px;background:var(--yellow);display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+  .back{border:0;background:transparent;cursor:pointer;font-size:18px}
+  .mpad{padding:16px}
+  .pane{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin-bottom:12px;display:flex;justify-content:center}
+  .still{opacity:.96}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BUSINESS MODEL <span>CANVAS</span></h1>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="overlay" id="overlay" aria-hidden="true">
+  <div class="modal">
+    <div class="mhead">
+      <div class="title" id="mtitle">Détail</div>
+      <button class="back" id="backBtn" title="Retour">↩︎</button>
+    </div>
+    <div class="mpad">
+      <div class="pane">
+        <div class="body" style="padding:0">
+          <img class="preview" id="modalImg" alt="aperçu"/>
+          <button class="upbtn" id="modalPick">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l4 4h-3v6h-2V7H8l4-4zm-7 9h2v7h14v-7h2v9H5v-9z"/></svg>
+            Importer un GIF
+          </button>
+          <div class="hint" id="modalHint">GIF à venir</div>
+        </div>
+      </div>
+      <div class="text" style="color:#111;font-size:16px;line-height:1.6">123azert123</div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/gif,image/apng,image/webp,image/png,image/jpeg" style="display:none" />
+
+<script>
+const defs = [
+  { id: "partners", title: "PARTENAIRES CLÉS", number: 8, pos: [1,2,1,3] },
+  { id: "activities", title: "ACTIVITÉS CLÉS", number: 7, pos: [2,3,1,2] },
+  { id: "resources", title: "RESSOURCES CLÉS", number: 6, pos: [2,3,2,3] },
+  { id: "value", title: "PROPOSITION DE VALEUR", number: 2, pos: [3,4,1,3] },
+  { id: "relationships", title: "RELATION CLIENT", number: 4, pos: [4,5,1,2] },
+  { id: "channels", title: "CANAUX", number: 3, pos: [4,5,2,3] },
+  { id: "segments", title: "SEGMENTS CLIENTS", number: 1, pos: [5,6,1,3] },
+  { id: "costs", title: "STRUCTURE DE COÛTS", number: 9, pos: [1,4,3,4] },
+  { id: "revenue", title: "REVENUS", number: 5, pos: [4,6,3,4] },
+];
+const storeKey = "bmc_gifs_v2";
+const grid = document.getElementById("grid");
+const overlay = document.getElementById("overlay");
+const mtitle = document.getElementById("mtitle");
+const mimg = document.getElementById("modalImg");
+const mpick = document.getElementById("modalPick");
+const mhint = document.getElementById("modalHint");
+const backBtn = document.getElementById("backBtn");
+const fileInput = document.getElementById("fileInput");
+
+let openId = null;
+function getStore(){ try{ return JSON.parse(localStorage.getItem(storeKey)||"{}"); }catch(e){ return {}; } }
+function setStore(m){ try{ localStorage.setItem(storeKey, JSON.stringify(m)); }catch(e){} }
+
+function playOnceAndFreeze(imgEl, dataURL){
+  imgEl.classList.remove("still");
+  imgEl.src = dataURL;
+  const snapDelay = 1600;
+  setTimeout(()=>{
+    try{
+      const c = document.createElement("canvas");
+      const w = imgEl.naturalWidth || imgEl.width || 200;
+      const h = imgEl.naturalHeight || imgEl.height || 200;
+      c.width=w; c.height=h;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(imgEl, 0, 0, w, h);
+      const still = c.toDataURL("image/png");
+      if(still && still.startsWith("data:image/")){
+        imgEl.src = still;
+        imgEl.classList.add("still");
+      }
+    }catch(e){}
+  }, snapDelay);
+}
+
+function renderCard(container, def, dataURL){
+  container.innerHTML = "";
+  const card = document.createElement("div");
+  card.className = "card";
+  const head = document.createElement("div");
+  head.className = "head";
+  const left = document.createElement("div");
+  left.className = "title";
+  left.textContent = def.title;
+  const right = document.createElement("div");
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.textContent = def.number;
+  const plus = document.createElement("button");
+  plus.className = "btn plus";
+  plus.title = "Ouvrir";
+  plus.addEventListener("click", ()=> openModal(def.id));
+  right.appendChild(badge); right.appendChild(plus);
+  head.appendChild(left); head.appendChild(right);
+  const body = document.createElement("div");
+  body.className = "body";
+  const img = document.createElement("img");
+  img.className = "preview";
+  const hint = document.createElement("div");
+  hint.className = "hint";
+  hint.textContent = dataURL ? "" : "GIF à venir";
+  const up = document.createElement("button");
+  up.className = "upbtn";
+  up.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l4 4h-3v6h-2V7H8l4-4zm-7 9h2v7h14v-7h2v9H5v-9z"/></svg>Importer un GIF';
+  up.addEventListener("click", ()=> pickFile(def.id));
+  body.appendChild(img);
+  body.appendChild(up);
+  body.appendChild(hint);
+  const foot = document.createElement("div");
+  foot.className = "footer";
+  card.appendChild(head); card.appendChild(body); card.appendChild(foot);
+  container.appendChild(card);
+  if(dataURL){
+    playOnceAndFreeze(img, dataURL);
+  }else{
+    img.style.display="none";
+  }
+}
+
+function buildGrid(){
+  grid.innerHTML="";
+  const store = getStore();
+  defs.forEach(def=>{
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.style.gridColumn = def.pos[0]+" / "+def.pos[1];
+    cell.style.gridRow = def.pos[2]+" / "+def.pos[3];
+    grid.appendChild(cell);
+    renderCard(cell, def, store[def.id]||null);
+  });
+}
+
+function openModal(id){
+  const store = getStore();
+  const def = defs.find(d=>d.id===id);
+  openId = id;
+  mtitle.textContent = def.title;
+  overlay.classList.add("open");
+  const url = store[id] || null;
+  mhint.textContent = url ? "" : "GIF à venir";
+  if(url){ playOnceAndFreeze(mimg, url); } else { mimg.removeAttribute("src"); }
+}
+
+function closeModal(){
+  openId = null;
+  overlay.classList.remove("open");
+  buildGrid();
+}
+
+function pickFile(id){
+  fileInput.onchange = e => {
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    const rdr = new FileReader();
+    rdr.onload = () => {
+      const dataURL = typeof rdr.result === "string" ? rdr.result : null;
+      if(!dataURL) return;
+      const store = getStore(); store[id] = dataURL; setStore(store);
+      buildGrid();
+      if(openId===id){
+        mhint.textContent = "";
+        playOnceAndFreeze(mimg, dataURL);
+      }
+      fileInput.value = "";
+    };
+    rdr.readAsDataURL(f);
+  };
+  fileInput.click();
+}
+
+document.getElementById("overlay").addEventListener("click", (e)=>{
+  if(e.target === overlay) closeModal();
+});
+backBtn.addEventListener("click", closeModal);
+document.addEventListener("keydown", (e)=>{ if(e.key==="Escape" && overlay.classList.contains("open")) closeModal(); });
+
+buildGrid();
+</script>
+</body>
+</html>
